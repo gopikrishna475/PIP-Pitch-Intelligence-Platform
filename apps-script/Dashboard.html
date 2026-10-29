@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PIP dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root{
+      --bg:#F7F8F9; --panel:#FFFFFF; --ink:#1C2126; --ink2:#5C6670; --ink3:#8A939C;
+      --line:#E4E7EA; --line2:#D3D8DD;
+      --low:#2F7A52; --lowbg:#E9F4ED; --lowbd:#A9CFB9;
+      --watch:#8A6416; --watchbg:#FBF3E2; --watchbd:#DCC084;
+      --high:#A6542C; --highbg:#FBEDE5; --highbd:#DCA88C;
+      --unplay:#93302C; --unplaybg:#FBEAE9; --unplaybd:#DCA09D;
+      --rain:#3E7096;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#14181C; --panel:#1B2025; --ink:#E8EBEE; --ink2:#A5AEB7; --ink3:#7C858E;
+        --line:#2A3138; --line2:#37404A;
+        --low:#7FC79F; --lowbg:#1B2C23; --lowbd:#35604A;
+        --watch:#E0BC6E; --watchbg:#2C2517; --watchbd:#6A5730;
+        --high:#E59A73; --highbg:#2E211A; --highbd:#6E4833;
+        --unplay:#E88A85; --unplaybg:#2E1D1C; --unplaybd:#6E3A37;
+        --rain:#6E9CBF;
+      }
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);
+      font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+    .wrap{max-width:1040px;margin:0 auto;padding:20px 16px 40px}
+    header.top{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;
+      justify-content:space-between;margin-bottom:4px}
+    .brand{font-size:20px;font-weight:600;letter-spacing:-.01em}
+    .brand span{color:var(--ink3);font-weight:400;font-size:14px;margin-left:8px}
+    .stamp{color:var(--ink3);font-size:12px}
+    .banner{margin-top:12px;padding:10px 12px;border-radius:8px;font-size:13px;
+      border:1px solid var(--watchbd);background:var(--watchbg);color:var(--watch)}
+    .banner.bad{border-color:var(--unplaybd);background:var(--unplaybg);color:var(--unplay)}
+    .grid{display:grid;gap:14px;margin-top:16px}
+    @media(min-width:760px){ .cols-2{grid-template-columns:1fr 1fr} }
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+    .card h2{margin:0 0 2px;font-size:15px;font-weight:600}
+    .card .sub{color:var(--ink3);font-size:12px;margin-bottom:12px}
+    .riskrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+    .riskbadge{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;
+      border-radius:999px;font-size:15px;font-weight:600;border:1px solid}
+    .dot{width:9px;height:9px;border-radius:50%;background:currentColor}
+    .r-LOW{color:var(--low);background:var(--lowbg);border-color:var(--lowbd)}
+    .r-WATCH{color:var(--watch);background:var(--watchbg);border-color:var(--watchbd)}
+    .r-HIGH{color:var(--high);background:var(--highbg);border-color:var(--highbd)}
+    .r-UNPLAYABLE{color:var(--unplay);background:var(--unplaybg);border-color:var(--unplaybd)}
+    .metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:16px}
+    @media(min-width:600px){ .metrics{grid-template-columns:repeat(3,1fr)} }
+    .m{border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+    .m .k{color:var(--ink3);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+    .m .v{font-size:19px;font-weight:600;margin-top:2px}
+    .m .v small{font-size:12px;font-weight:400;color:var(--ink2)}
+    .chartbox{height:300px;margin-top:8px}
+    .riskbar{display:flex;height:26px;border-radius:6px;overflow:hidden;
+      border:1px solid var(--line2);margin-top:6px}
+    .riskbar i{display:block}
+    .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--ink2)}
+    .legend b{font-weight:600}
+    table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+    th{text-align:left;color:var(--ink3);font-weight:500;font-size:11px;
+      text-transform:uppercase;letter-spacing:.04em;padding:6px 8px;border-bottom:1px solid var(--line)}
+    td{padding:7px 8px;border-bottom:1px solid var(--line)}
+    .empty{color:var(--ink3);font-size:13px;padding:14px 0}
+    .tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;
+      font-weight:500;border:1px solid}
+    footer{color:var(--ink3);font-size:12px;margin-top:22px;line-height:1.6}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="brand">PIP<span id="pitchName">loading…</span></div>
+    </div>
+    <div class="stamp" id="stamp">—</div>
+  </header>
+
+  <div id="banners"></div>
+  <div id="app" class="grid"></div>
+
+  <footer>
+    Risk thresholds and soil parameters are <b>uncalibrated defaults</b> until a real
+    pitch supplies labelled outcomes. Drainage capacity is the parameter that drives
+    the result — treat absolute values as estimates, not measurements.
+  </footer>
+</div>
+
+<script>
+var DATA = null;
+var chart = null;
+var ORDER = {LOW:0, WATCH:1, HIGH:2, UNPLAYABLE:3};
+
+function $(id){ return document.getElementById(id); }
+function pct(x){ return Math.round(x*100) + '%'; }
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){
+  return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+
+google.script.run.withSuccessHandler(render).withFailureHandler(function(e){
+  $('app').innerHTML = '<div class="card"><h2>Could not load data</h2><div class="sub">'
+    + esc(e.message || e) + '</div></div>';
+}).getDashboardData();
+
+function render(d){
+  DATA = d;
+  $('stamp').textContent = 'Updated ' + d.generatedAt;
+
+  var ids = Object.keys(d.pitches);
+  if(!ids.length){ $('app').innerHTML = '<div class="card">No pitches configured.</div>'; return; }
+  var id = ids[0];
+  var p = d.pitches[id];
+  $('pitchName').textContent = ' · ' + p.name;
+
+  // ---- banners -----------------------------------------------------------
+  var banners = [];
+  if(d.testMode){
+    banners.push('<div class="banner">Test mode is on — messages are being composed ' +
+      'but not sent, and nothing is going to a client.</div>');
+  } else if(!d.whatsappEnabled){
+    banners.push('<div class="banner">What\u2019sApp delivery is switched off. Alerts are ' +
+      'being written to the log only.</div>');
+  }
+  if(p.staleHours !== null && p.staleHours > 26){
+    banners.push('<div class="banner bad">No sensor reading for ' +
+      Math.round(p.staleHours) + ' hours. The forecast is running on weather data alone — ' +
+      'check the gateway and battery.</div>');
+  }
+  if(!p.latest){
+    banners.push('<div class="banner">No model output yet. Run <b>runDaily</b> in the ' +
+      'Apps Script editor to produce the first row.</div>');
+  }
+  $('banners').innerHTML = banners.join('');
+
+  var L = p.latest || {};
+  var risk = L.risk || 'LOW';
+  var excess = Math.max(0, L.swMm || 0);
+
+  var html = '';
+
+  // ---- status ------------------------------------------------------------
+  html += '<div class="card">'
+    + '<h2>' + esc(p.name) + ' — current state</h2>'
+    + '<div class="sub">' + esc(L.date || '—') + ' · drainage capacity '
+    + p.drainage + ' mm/day</div>'
+    + '<div class="riskrow"><span class="riskbadge r-' + risk + '">'
+    + '<span class="dot"></span>' + risk + '</span>'
+    + '<span style="color:var(--ink2);font-size:13px">'
+    + (excess > 0
+        ? excess.toFixed(1) + ' mm of water sitting above field capacity'
+        : Math.abs(L.swMm || 0).toFixed(1) + ' mm of soil moisture deficit')
+    + '</span></div>'
+    + '<div class="metrics">'
+    + metric('Water above field capacity', excess.toFixed(1), 'mm')
+    + metric('Drainable pore space filled', pct(L.fSat || 0), '')
+    + metric('Days to clear', (L.daysToClear || 0), 'days')
+    + metric('Sensor reading', (L.sensorTheta === null || L.sensorTheta === undefined)
+        ? '—' : Number(L.sensorTheta).toFixed(3), 'm³/m³')
+    + metric('Modelled soil moisture', Number(L.theta || 0).toFixed(3), 'm³/m³')
+    + metric('Rain in, last day', Number(L.precip || 0).toFixed(1), 'mm')
+    + '</div></div>';
+
+  // ---- chart -------------------------------------------------------------
+  html += '<div class="card cols-2">'
+    + '<h2>Last ' + p.series.length + ' days</h2>'
+    + '<div class="sub">Rainfall against modelled water above field capacity, with the '
+    + 'unplayable threshold</div>'
+    + '<div class="chartbox"><canvas id="cv"></canvas></div></div>';
+
+  // ---- season summary ----------------------------------------------------
+  var total = p.daysLogged || 1;
+  var bar = ['LOW','WATCH','HIGH','UNPLAYABLE'].map(function(k){
+    var w = (p.counts[k] || 0) / total * 100;
+    if(!w) return '';
+    var col = {LOW:'var(--low)',WATCH:'var(--watch)',HIGH:'var(--high)',UNPLAYABLE:'var(--unplay)'}[k];
+    return '<i style="width:' + w + '%;background:' + col + '"></i>';
+  }).join('');
+
+  html += '<div class="card"><h2>Season to date</h2>'
+    + '<div class="sub">' + p.daysLogged + ' days logged for this pitch</div>'
+    + '<div class="riskbar">' + bar + '</div>'
+    + '<div class="legend">'
+    + ['LOW','WATCH','HIGH','UNPLAYABLE'].map(function(k){
+        return '<span><b>' + (p.counts[k] || 0) + '</b> ' + k.toLowerCase() + '</span>';
+      }).join('')
+    + '</div>'
+    + '<div style="margin-top:14px;font-size:13px;color:var(--ink2)">'
+    + '<b style="font-size:20px;color:var(--ink)">' + p.pctUnplayable + '%</b> '
+    + 'of logged days modelled as unplayable.</div></div>';
+
+  // ---- outcomes (ground truth) -------------------------------------------
+  var rows = p.outcomes.slice().reverse().map(function(o){
+    var off = String(o.outcome).toUpperCase() === 'OFF';
+    return '<tr><td>' + esc(String(o.date).slice(0,10)) + '</td>'
+      + '<td><span class="tag" style="border-color:' + (off ? 'var(--unplaybd)' : 'var(--lowbd)')
+      + ';background:' + (off ? 'var(--unplaybg)' : 'var(--lowbg)')
+      + ';color:' + (off ? 'var(--unplay)' : 'var(--low)') + '">'
+      + esc(o.outcome) + '</span></td>'
+      + '<td style="color:var(--ink2)">' + esc(o.source || '') + '</td></tr>';
+  }).join('');
+
+  html += '<div class="card"><h2>Ground truth</h2>'
+    + '<div class="sub">What actually happened, reported by the groundsman. '
+    + 'This is what will calibrate the thresholds.</div>'
+    + (rows
+        ? '<table><thead><tr><th>Date</th><th>Outcome</th><th>Source</th></tr></thead><tbody>'
+          + rows + '</tbody></table>'
+        : '<div class="empty">Nothing logged yet. Replies of <b>PLAYED</b> or <b>OFF</b> '
+          + 'to the WhatsApp alert land here automatically.</div>')
+    + '</div>';
+
+  $('app').innerHTML = html;
+  drawChart(p);
+}
+
+function metric(k, v, unit){
+  return '<div class="m"><div class="k">' + esc(k) + '</div>'
+    + '<div class="v">' + v + (unit ? ' <small>' + esc(unit) + '</small>' : '') + '</div></div>';
+}
+
+function drawChart(p){
+  var el = $('cv'); if(!el || !p.series.length) return;
+  var labels = p.series.map(function(s){ return s.date.slice(5); });
+  var rain = p.series.map(function(s){ return s.precip; });
+  var sw = p.series.map(function(s){ return Math.max(0, s.sw); });
+  var thr = labels.map(function(){ return 20.8; });
+
+  var css = getComputedStyle(document.body);
+  var col = function(n, fb){ return (css.getPropertyValue(n) || '').trim() || fb; };
+  var INK2 = col('--ink2','#5C6670'), LINE = col('--line','#E4E7EA'),
+      RAIN = col('--rain','#3E7096'), UNP = col('--unplay','#93302C'),
+      WATCH = col('--watch','#8A6416');
+
+  if(chart) chart.destroy();
+  chart = new Chart(el, {
+    data:{ labels: labels, datasets: [
+      { type:'bar', label:'Rain (mm/day)', data:rain, yAxisID:'y1', order:3,
+        backgroundColor: RAIN, borderWidth:0, opacity:.35 },
+      { type:'line', label:'Water above field capacity (mm)', data:sw, yAxisID:'y',
+        borderColor: WATCH, borderWidth:2.2, tension:.25, pointRadius:0,
+        pointHoverRadius:4, order:1 },
+      { type:'line', label:'Unplayable threshold', data:thr, yAxisID:'y',
+        borderColor: UNP, borderWidth:1.2, borderDash:[5,4], pointRadius:0, order:0 }
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index', intersect:false},
+      plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, boxHeight:10,
+        font:{size:11}, color:INK2, usePointStyle:true, padding:12 } } },
+      scales:{
+        x:{ ticks:{ color:INK2, font:{size:10}, maxRotation:0, autoSkip:true,
+             maxTicksLimit:12 }, grid:{ display:false } },
+        y:{ min:-2, max:28, position:'left',
+            ticks:{ color:INK2, font:{size:10} }, grid:{ color:LINE },
+            title:{ display:true, text:'mm above field capacity', color:INK2, font:{size:11} } },
+        y1:{ min:0, max:40, position:'right', grid:{ drawOnChartArea:false },
+            ticks:{ color:INK2, font:{size:10} },
+            title:{ display:true, text:'mm rain', color:INK2, font:{size:11} } }
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>
